@@ -1,15 +1,19 @@
 <!--
-  TRADE BOARD — LIVE SLEEPER VERSION (v3, "Trading Floor" redesign)
-  --------------------------------------------------------------------
-  Same functionality as v2 (live Sleeper connect, rank+tier system,
-  7-grade trade verdict, blurbs, headshots, rankings tab) — this pass
-  is a visual redesign only: dark terminal/ticker aesthetic instead of
-  the turf-green look, with position-coded color throughout instead of
-  a single accent doing all the work.
+  TRADE BOARD — LIVE SLEEPER VERSION (v4)
+  ------------------------------------------
+  Everything merged into one deployable file:
+  - Live Sleeper connect (real rosters, scoring format, starters, headshots)
+  - Player pool with REAL rank + PPG (Week 3 2026 PPR consensus, Pro Football
+    Network) for QB/RB/WR/TE. K/DEF are still estimates.
+  - Trading-floor dark/ticker visual theme, position-coded color throughout
+  - 7-grade trade verdict based on % value gap
+  - Conveyor-belt trade picker: search + scrollable card strip with real
+    headshots (pulled from Sleeper's player DB/CDN), instead of a dropdown
+  - Rankings tab: full positional cheat sheet
 
-  Static HTML/JS, talks directly to Sleeper's public API (no key needed).
-  Won't run inside Claude's sandbox — host it anywhere with normal
-  internet access (GitHub Pages, Netlify, Vercel, or just open locally).
+  Static HTML/JS. Talks directly to Sleeper's public API (no key needed).
+  Won't run inside Claude's sandbox — host it anywhere with normal internet
+  access (GitHub Pages, Netlify, Vercel, or just open the file locally).
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -22,7 +26,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#0a0c0f; --panel:#111418; --panel-2:#161a1f; --line:#242a32; --line-soft:#1a1f26;
+  --bg:#0a0c0f; --panel:#111418; --panel-2:#161a1f; --panel-3:#1c2129; --line:#242a32; --line-soft:#1a1f26;
   --text:#e8eaed; --text-dim:#767d89; --text-dimmer:#4d525c;
   --green:#00d964; --red:#ff4d5e; --amber:#f0a93b;
   --qb:#a78bfa; --rb:#00d964; --wr:#4ea8ff; --te:#f0a93b; --k:#9aa4b2; --def:#ff6b6b;
@@ -30,20 +34,14 @@
 *{box-sizing:border-box}
 body{margin:0; min-height:100vh; background:var(--bg); color:var(--text); font-family:'IBM Plex Mono',monospace; font-size:14px;}
 h1,h2,h3{font-family:'Space Grotesk',sans-serif; font-weight:700; margin:0;}
-.disp{font-family:'Space Grotesk',sans-serif;}
 .wrap{max-width:1200px; margin:0 auto; padding:0 20px 80px;}
-
-/* ticker */
 .ticker-wrap{background:var(--panel-2); border-bottom:1px solid var(--line); overflow:hidden; white-space:nowrap; height:30px; display:flex; align-items:center;}
 .ticker{display:inline-block; padding-left:100%; color:var(--amber); font-size:12px; letter-spacing:.02em; animation:ticker 22s linear infinite;}
 @keyframes ticker{ from{transform:translateX(0);} to{transform:translateX(-100%);} }
 @media (prefers-reduced-motion: reduce){ .ticker{animation:none; padding-left:16px;} }
-
 header.top{padding:26px 0 20px; border-bottom:1px solid var(--line); margin-bottom:24px;}
-header.top h1{font-size:30px; letter-spacing:-0.01em;}
-header.top h1 .accent{color:var(--green);}
+header.top h1{font-size:30px;} header.top h1 .accent{color:var(--green);}
 header.top p{margin:6px 0 0; color:var(--text-dim); font-size:12.5px; max-width:640px; line-height:1.5;}
-
 section{margin-bottom:26px;}
 .section-head{display:flex; align-items:baseline; gap:12px; margin-bottom:12px;}
 .section-head h2{font-size:18px;}
@@ -67,22 +65,19 @@ button.ghost{background:transparent; border:1px solid var(--text-dimmer); color:
 .league-opt .meta{color:var(--text-dim); font-size:11px;}
 .pill{font-size:10px; border-radius:3px; padding:2px 7px; border:1px solid var(--green); color:var(--green); font-family:'IBM Plex Mono',monospace;}
 
-/* tabs */
 .tabbar{display:flex; gap:22px; border-bottom:1px solid var(--line); margin-bottom:18px;}
 .tabbar button{background:transparent; border:none; border-bottom:2px solid transparent; color:var(--text-dim); border-radius:0; padding:10px 0; font-size:14px; font-family:'Space Grotesk',sans-serif; font-weight:600;}
 .tabbar button.active{color:var(--text); border-bottom-color:var(--green);}
-.tabpage{display:none;}
-.tabpage.active{display:block;}
+.tabpage{display:none;} .tabpage.active{display:block;}
 
-/* player chip w/ position color coding */
 .pchip{display:flex; align-items:center; gap:9px;}
 .pchip img{width:32px; height:32px; border-radius:50%; object-fit:cover; background:var(--bg); border:2px solid var(--pc, var(--line)); flex-shrink:0;}
 .pchip .noimg{width:32px; height:32px; border-radius:50%; background:var(--bg); border:2px solid var(--pc, var(--line)); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--pc, var(--text-dim)); font-family:'IBM Plex Mono',monospace;}
 .pchip .info{display:flex; flex-direction:column; line-height:1.3;}
 .pchip .info .nm{font-size:13.5px; font-family:'Space Grotesk',sans-serif; font-weight:600;}
-.pchip .info .sub{font-size:10.5px; color:var(--pc, var(--text-dim)); font-weight:600; letter-spacing:.02em;}
+.pchip .info .sub{font-size:10.5px; color:var(--pc, var(--text-dim)); font-weight:600;}
 
-.tierbadge{font-size:10px; font-family:'IBM Plex Mono',monospace; padding:2px 7px; border-radius:3px; white-space:nowrap; border:1px solid; font-weight:600;}
+.tierbadge{font-size:10px; padding:2px 7px; border-radius:3px; border:1px solid; font-weight:600; white-space:nowrap;}
 .t1{color:var(--green); border-color:var(--green); background:rgba(0,217,100,0.08);}
 .t2{color:#7fd8ff; border-color:#7fd8ff; background:rgba(127,216,255,0.06);}
 .t3{color:var(--text-dim); border-color:var(--line);}
@@ -92,9 +87,37 @@ button.ghost{background:transparent; border:1px solid var(--text-dimmer); color:
 
 .teams-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px;}
 .team-card{background:var(--panel-2); border:1px solid var(--line); border-radius:4px; padding:14px;}
-.team-card h3{margin:0 0 10px; font-size:15px; color:var(--text);}
+.team-card h3{margin:0 0 10px; font-size:15px;}
 .team-card .p{display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line-soft); gap:8px;}
 .team-card .p:last-child{border-bottom:none;}
+
+/* conveyor belt */
+.belt-block{margin-bottom:8px;}
+.belt-search{width:100%; margin-bottom:10px;}
+.belt-scroll{
+  display:flex; gap:10px; overflow-x:auto; padding:6px 4px 14px;
+  scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch;
+  width:526px; max-width:100%;
+}
+.belt-scroll::-webkit-scrollbar{height:6px;}
+.belt-scroll::-webkit-scrollbar-thumb{background:var(--line); border-radius:3px;}
+.belt-scroll::-webkit-scrollbar-track{background:transparent;}
+.belt-card{
+  flex:0 0 108px; scroll-snap-align:start; background:var(--panel-3); border:1px solid var(--line);
+  border-radius:8px; padding:10px 8px; text-align:center; cursor:pointer; transition:border-color .12s, transform .12s;
+}
+.belt-card:hover{border-color:var(--pc); transform:translateY(-2px);}
+.belt-avatar{
+  width:52px; height:52px; border-radius:50%; margin:0 auto 8px; overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--pc) 18%, var(--bg)); border:2px solid var(--pc);
+  font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px; color:var(--pc);
+}
+.belt-avatar img{width:100%; height:100%; object-fit:cover;}
+.belt-name{font-size:11.5px; font-family:'Space Grotesk',sans-serif; font-weight:600; line-height:1.25; margin-bottom:4px; min-height:28px; display:flex; align-items:center; justify-content:center;}
+.belt-meta{font-size:9.5px; color:var(--pc); font-weight:600; margin-bottom:6px;}
+.belt-ppg{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px; color:var(--text);}
+.belt-empty{color:var(--text-dimmer); font-size:12px; padding:20px 4px;}
 
 .trade-grid{display:grid; grid-template-columns:1fr auto 1fr; gap:16px; align-items:start;}
 @media(max-width:760px){.trade-grid{grid-template-columns:1fr;}}
@@ -131,18 +154,19 @@ button.ghost{background:transparent; border:1px solid var(--text-dimmer); color:
 .rank-table td{padding:8px; border-bottom:1px solid var(--line-soft); font-size:13px; vertical-align:middle;}
 .rank-table tr:hover{background:var(--panel-2);}
 .rank-num{color:var(--text-dimmer); width:40px;}
+.ppg-val{font-family:'Space Grotesk',sans-serif; font-weight:700;}
 
 .hidden{display:none;}
 footer{color:var(--text-dimmer); font-size:11px; text-align:center; margin-top:40px; line-height:1.7;}
 </style>
 </head>
 <body>
-<div class="ticker-wrap"><div class="ticker" id="tickerText">CONNECT A SLEEPER LEAGUE TO BEGIN · TRADE BOARD LIVE · VALUES ARE A PROTOTYPE DATASET, NOT REAL-TIME RANKINGS ·</div></div>
+<div class="ticker-wrap"><div class="ticker" id="tickerText">CONNECT A SLEEPER LEAGUE TO BEGIN · TRADE BOARD LIVE · QB/RB/WR/TE VALUES FROM REAL WEEK 3 2026 PPR CONSENSUS ·</div></div>
 
 <div class="wrap">
   <header class="top">
     <h1>TRADE<span class="accent">/</span>BOARD</h1>
-    <p>Connects to your real Sleeper league — rosters, scoring format, and starters pulled live. Player grades are a hand-built mock pool.</p>
+    <p>Connects to your real Sleeper league — rosters, scoring format, and starters pulled live. QB/RB/WR/TE values are real current PPG (Week 3 2026 PPR consensus); K/DEF are estimates.</p>
   </header>
 
   <section id="connect">
@@ -176,18 +200,22 @@ footer{color:var(--text-dimmer); font-size:11px; text-align:center; margin-top:4
         <div class="trade-grid">
           <div class="side">
             <h3 id="sideALabel">Team A</h3>
-            <select id="teamASelect"></select>
-            <select id="playerASelect"></select>
-            <button class="ghost" style="margin-top:8px;" onclick="addPiece('A')">Add to trade</button>
-            <div class="piece-list" id="listA" style="margin-top:10px;"></div>
+            <select id="teamASelect" style="margin-bottom:10px;"></select>
+            <div class="belt-block">
+              <input type="text" class="belt-search" id="searchA" placeholder="Search this team's roster…" oninput="renderBelt('A')">
+              <div class="belt-scroll" id="beltA"></div>
+            </div>
+            <div class="piece-list" id="listA" style="margin-top:6px;"></div>
           </div>
           <div class="vs">VS</div>
           <div class="side">
             <h3 id="sideBLabel">Team B</h3>
-            <select id="teamBSelect"></select>
-            <select id="playerBSelect"></select>
-            <button class="ghost" style="margin-top:8px;" onclick="addPiece('B')">Add to trade</button>
-            <div class="piece-list" id="listB" style="margin-top:10px;"></div>
+            <select id="teamBSelect" style="margin-bottom:10px;"></select>
+            <div class="belt-block">
+              <input type="text" class="belt-search" id="searchB" placeholder="Search this team's roster…" oninput="renderBelt('B')">
+              <div class="belt-scroll" id="beltB"></div>
+            </div>
+            <div class="piece-list" id="listB" style="margin-top:6px;"></div>
           </div>
         </div>
         <div class="verdict hidden" id="verdict">
@@ -225,108 +253,84 @@ footer{color:var(--text-dimmer); font-size:11px; text-align:center; margin-top:4
           </select>
         </div>
         <table class="rank-table">
-          <thead><tr><th>#</th><th>Player</th><th>Pos</th><th>Tier</th><th>Score</th></tr></thead>
+          <thead><tr><th>#</th><th>Player</th><th>Pos</th><th>Tier</th><th>PPG</th></tr></thead>
           <tbody id="rankTableBody"></tbody>
         </table>
       </div>
     </section>
   </div>
 
-  <footer>Rosters, league settings, scoring format, starters, and headshots are live from Sleeper. Player tiers/scores/blurbs are hand-set mock values for ~190 named players — everyone else shows as Unranked.</footer>
+  <footer>Rosters, league settings, scoring format, starters, and headshots are live from Sleeper. QB/RB/WR/TE rank + PPG are real (Week 3 2026 PPR consensus, Pro Football Network); K/DEF and the half/standard adjustment are estimates.</footer>
 </div>
 
 <script>
 const SLEEPER = 'https://api.sleeper.app/v1';
 const POS_COLOR = {QB:'var(--qb)', RB:'var(--rb)', WR:'var(--wr)', TE:'var(--te)', K:'var(--k)', DEF:'var(--def)'};
 
-// ================= Mock rankings pool =================
-const P = (name,pos,std,half,ppr)=>({name,pos,std,half:half??std,ppr:ppr??half??std});
+// name, position, real positional rank, real PPR points-per-game (Week 3 2026 consensus, PFN)
+const PR = (name,pos,rank,ppg)=>({name,pos,rank,ppg});
 const mockPlayers = [
-// QB
-P("Patrick Mahomes","QB",98,98,98),P("Josh Allen","QB",97,97,97),P("Lamar Jackson","QB",96,96,96),
-P("Joe Burrow","QB",94,94,94),P("Jayden Daniels","QB",90,90,90),P("Justin Herbert","QB",89,89,89),
-P("Jalen Hurts","QB",88,88,88),P("Kyler Murray","QB",81,81,81),P("Jared Goff","QB",85,85,85),
-P("C.J. Stroud","QB",84,84,84),P("Brock Purdy","QB",82,82,82),P("Jordan Love","QB",80,80,80),
-P("Dak Prescott","QB",79,79,79),P("Tua Tagovailoa","QB",75,75,75),P("Bo Nix","QB",75,75,75),
-P("Sam Darnold","QB",71,71,71),P("Caleb Williams","QB",70,70,70),P("Anthony Richardson","QB",68,68,68),
-P("Baker Mayfield","QB",71,71,71),P("Geno Smith","QB",64,64,64),P("Trevor Lawrence","QB",66,66,66),
-P("Matthew Stafford","QB",69,69,69),P("Aaron Rodgers","QB",58,58,58),P("Russell Wilson","QB",56,56,56),
-P("Drake Maye","QB",67,67,67),P("J.J. McCarthy","QB",60,60,60),P("Michael Penix Jr.","QB",62,62,62),
-P("Will Levis","QB",50,50,50),
-// RB
-P("Bijan Robinson","RB",95,96,97),P("Saquon Barkley","RB",95,95,94),P("Jahmyr Gibbs","RB",92,94,96),
-P("Christian McCaffrey","RB",90,91,92),P("Breece Hall","RB",87,89,91),P("Derrick Henry","RB",89,87,84),
-P("Ashton Jeanty","RB",84,84,83),P("Jonathan Taylor","RB",85,84,83),P("De'Von Achane","RB",82,85,88),
-P("Josh Jacobs","RB",83,82,80),P("Kyren Williams","RB",81,80,79),P("Bucky Irving","RB",78,81,84),
-P("James Cook","RB",78,77,76),P("Chase Brown","RB",76,77,78),P("Alvin Kamara","RB",75,78,82),
-P("Kenneth Walker III","RB",77,77,76),P("Omarion Hampton","RB",76,76,75),P("TreVeyon Henderson","RB",70,72,74),
-P("Quinshon Judkins","RB",68,68,67),P("Joe Mixon","RB",73,72,71),P("James Conner","RB",72,72,72),
-P("Aaron Jones","RB",69,70,71),P("Tony Pollard","RB",68,68,68),P("Rhamondre Stevenson","RB",66,68,71),
-P("Chuba Hubbard","RB",65,64,63),P("Javonte Williams","RB",63,63,63),P("Rachaad White","RB",59,62,66),
-P("D'Andre Swift","RB",60,63,67),P("Tyjae Spears","RB",56,60,64),P("Najee Harris","RB",63,62,61),
-P("Brian Robinson Jr.","RB",61,60,59),P("Jaylen Warren","RB",55,58,62),P("Zach Charbonnet","RB",54,54,54),
-P("Jerome Ford","RB",50,53,57),P("Kaleb Johnson","RB",52,53,54),P("Cam Skattebo","RB",51,53,55),
-P("Dylan Sampson","RB",45,47,49),P("Bhayshul Tuten","RB",44,45,46),P("Jaydon Blue","RB",42,44,46),
-P("Isaac Guerendo","RB",43,43,42),P("MarShawn Lloyd","RB",41,42,43),P("Emanuel Wilson","RB",38,39,40),
-P("Ray Davis","RB",48,49,50),P("Blake Corum","RB",46,46,46),P("Braelon Allen","RB",44,44,44),
-P("Ty Chandler","RB",40,41,42),P("Zack Moss","RB",42,42,42),P("Justice Hill","RB",41,43,45),
-P("Antonio Gibson","RB",40,41,42),P("Samaje Perine","RB",36,38,40),P("Tyrone Tracy Jr.","RB",47,48,49),
-// WR
-P("Ja'Marr Chase","WR",97,98,99),P("Justin Jefferson","WR",95,96,97),P("CeeDee Lamb","WR",93,94,95),
-P("Amon-Ra St. Brown","WR",90,93,95),P("Puka Nacua","WR",89,91,94),P("Malik Nabers","WR",88,90,93),
-P("Nico Collins","WR",86,87,88),P("A.J. Brown","WR",85,86,87),P("Marvin Harrison Jr.","WR",84,85,86),
-P("Drake London","WR",83,85,87),P("Garrett Wilson","WR",82,84,87),P("Brian Thomas Jr.","WR",78,80,82),
-P("Jaxon Smith-Njigba","WR",79,82,85),P("Terry McLaurin","WR",77,78,79),P("Tee Higgins","WR",80,81,82),
-P("Mike Evans","WR",77,78,79),P("DK Metcalf","WR",76,77,78),P("Rashee Rice","WR",75,78,81),
-P("Davante Adams","WR",76,78,80),P("Chris Olave","WR",73,75,77),P("Ladd McConkey","WR",74,76,79),
-P("DJ Moore","WR",73,74,75),P("Zay Flowers","WR",71,74,77),P("Rome Odunze","WR",71,73,75),
-P("Emeka Egbuka","WR",71,74,77),P("Xavier Worthy","WR",72,74,77),P("Jameson Williams","WR",68,70,72),
-P("Jordan Addison","WR",67,69,71),P("Keenan Allen","WR",65,68,72),P("Jerry Jeudy","WR",62,64,66),
-P("Courtland Sutton","WR",64,65,66),P("Jayden Reed","WR",64,67,70),P("George Pickens","WR",70,71,72),
-P("Calvin Ridley","WR",66,67,68),P("Michael Pittman Jr.","WR",64,65,66),P("Diontae Johnson","WR",58,61,65),
-P("Tank Dell","WR",57,59,61),P("Rashid Shaheed","WR",55,57,60),P("Josh Downs","WR",55,58,62),
-P("Khalil Shakir","WR",52,55,59),P("Wan'Dale Robinson","WR",51,54,58),P("Tyler Lockett","WR",53,54,55),
-P("Adam Thielen","WR",49,50,51),P("Romeo Doubs","WR",50,51,52),P("Marquise Brown","WR",47,48,49),
-P("Curtis Samuel","WR",45,47,49),P("Jauan Jennings","WR",48,51,55),P("Travis Hunter","WR",73,75,78),
-P("Matthew Golden","WR",64,66,68),P("Luther Burden III","WR",58,60,63),P("Tre Harris","WR",55,57,60),
-P("Jayden Higgins","WR",56,58,61),P("Jack Bech","WR",44,46,49),P("Elic Ayomanor","WR",46,48,51),
-P("Jalen McMillan","WR",54,56,59),P("Tutu Atwell","WR",42,44,47),P("Demario Douglas","WR",43,45,48),
-P("Alec Pierce","WR",44,44,44),P("Nelson Agholor","WR",38,39,41),P("Cedric Tillman","WR",47,48,50),
-P("Xavier Legette","WR",49,50,52),P("Marvin Mims Jr.","WR",48,50,53),
-// TE
-P("Brock Bowers","TE",91,94,97),P("Trey McBride","TE",87,90,93),P("Sam LaPorta","TE",81,84,87),
-P("George Kittle","TE",79,80,81),P("Mark Andrews","TE",73,74,75),P("Travis Kelce","TE",71,73,75),
-P("Tyler Warren","TE",70,72,75),P("Colston Loveland","TE",65,67,70),P("Evan Engram","TE",65,68,72),
-P("Dallas Goedert","TE",63,64,65),P("David Njoku","TE",61,62,63),P("Jake Ferguson","TE",58,60,62),
-P("Kyle Pitts","TE",56,57,58),P("Dalton Kincaid","TE",53,56,60),P("Cole Kmet","TE",50,51,52),
-P("Isaiah Likely","TE",48,51,55),P("Tucker Kraft","TE",47,48,49),P("Hunter Henry","TE",49,51,54),
-P("Cade Otton","TE",42,44,47),P("Juwan Johnson","TE",40,42,45),P("Chig Okonkwo","TE",41,43,46),
-// K
-P("Brandon Aubrey","K",90,90,90),P("Harrison Butker","K",81,81,81),P("Cameron Dicker","K",75,75,75),
-P("Justin Tucker","K",72,72,72),P("Chris Boswell","K",70,70,70),P("Younghoe Koo","K",67,67,67),
-P("Jason Sanders","K",65,65,65),P("Jake Moody","K",62,62,62),P("Ka'imi Fairbairn","K",63,63,63),
-P("Matt Gay","K",60,60,60),
-// DEF
-P("Broncos D/ST","DEF",84,84,84),P("Steelers D/ST","DEF",79,79,79),P("Eagles D/ST","DEF",77,77,77),
-P("49ers D/ST","DEF",75,75,75),P("Texans D/ST","DEF",73,73,73),P("Ravens D/ST","DEF",72,72,72),
-P("Bills D/ST","DEF",70,70,70),P("Vikings D/ST","DEF",66,66,66),P("Cowboys D/ST","DEF",65,65,65),
-P("Jets D/ST","DEF",62,62,62),
+PR("Josh Allen","QB",1,23.6),PR("Lamar Jackson","QB",2,22.1),PR("Joe Burrow","QB",3,21.5),PR("Drake Maye","QB",4,20.7),
+PR("Jalen Hurts","QB",5,19.2),PR("Trevor Lawrence","QB",6,18.7),PR("Jaxson Dart","QB",7,18.3),PR("Jayden Daniels","QB",8,18.3),
+PR("Dak Prescott","QB",9,18.1),PR("Justin Herbert","QB",10,17.7),PR("Patrick Mahomes","QB",11,17.7),PR("Bo Nix","QB",12,16.1),
+PR("Brock Purdy","QB",13,16.1),PR("Jared Goff","QB",14,15.8),PR("Jordan Love","QB",15,15.8),PR("Matthew Stafford","QB",16,15.5),
+PR("Caleb Williams","QB",17,15.5),PR("Tyler Shough","QB",18,15.5),PR("Baker Mayfield","QB",19,14.6),PR("Malik Willis","QB",20,14.6),
+PR("Kyler Murray","QB",21,14.0),PR("Daniel Jones","QB",22,13.8),PR("Jacoby Brissett","QB",23,13.8),PR("C.J. Stroud","QB",24,13.8),
+PR("Bryce Young","QB",25,13.8),PR("Aaron Rodgers","QB",26,13.8),PR("Sam Darnold","QB",27,13.5),PR("Cam Ward","QB",28,13.5),
+PR("Jahmyr Gibbs","RB",1,23.1),PR("Bijan Robinson","RB",2,20.6),PR("Jonathan Taylor","RB",3,19.4),PR("James Cook III","RB",4,19.1),
+PR("Christian McCaffrey","RB",5,18.4),PR("Derrick Henry","RB",6,17.1),PR("Chase Brown","RB",7,17.1),PR("Kenneth Walker III","RB",8,16.1),
+PR("Ashton Jeanty","RB",9,15.9),PR("Omarion Hampton","RB",10,15.8),PR("Javonte Williams","RB",11,15.3),PR("D'Andre Swift","RB",12,15.3),
+PR("Saquon Barkley","RB",13,15.0),PR("Breece Hall","RB",14,14.5),PR("De'Von Achane","RB",15,14.5),PR("Jeremiyah Love","RB",16,13.9),
+PR("Kyren Williams","RB",17,13.9),PR("Cam Skattebo","RB",18,13.9),PR("Bhayshul Tuten","RB",19,13.1),PR("Bucky Irving","RB",20,12.8),
+PR("Travis Etienne Jr.","RB",21,12.8),PR("David Montgomery","RB",22,12.8),PR("Chuba Hubbard","RB",23,12.4),PR("Jadarian Price","RB",24,12.4),
+PR("Jaylen Warren","RB",25,11.9),PR("Rhamondre Stevenson","RB",26,11.9),PR("TreVeyon Henderson","RB",27,11.9),PR("Quinshon Judkins","RB",28,11.6),
+PR("Jacory Croskey-Merritt","RB",29,10.5),PR("Tony Pollard","RB",30,10.5),PR("Blake Corum","RB",31,10.5),PR("Kyle Monangai","RB",32,10.5),
+PR("Rachaad White","RB",33,10.5),PR("J.K. Dobbins","RB",34,10.5),PR("Aaron Jones Sr.","RB",35,10.5),PR("Rico Dowdle","RB",36,9.9),
+PR("MarShawn Lloyd","RB",37,9.9),PR("Kenny Gainwell","RB",38,9.3),PR("Jordan Mason","RB",39,8.7),PR("Woody Marks","RB",40,8.7),
+PR("RJ Harvey","RB",41,8.7),PR("Tyler Allgeier","RB",42,8.7),PR("Jonathon Brooks","RB",43,8.7),PR("Kaelon Black","RB",44,7.5),
+PR("Chris Rodriguez Jr.","RB",45,7.5),PR("Jonah Coleman","RB",46,7.5),PR("Mike Washington Jr.","RB",47,6.8),PR("Keaton Mitchell","RB",48,6.8),
+PR("Brian Robinson Jr.","RB",49,6.8),PR("Tank Bigsby","RB",50,6.8),
+PR("Ja'Marr Chase","WR",1,23.5),PR("Jaxon Smith-Njigba","WR",2,20.9),PR("Amon-Ra St. Brown","WR",3,19.6),PR("Puka Nacua","WR",4,18.4),
+PR("CeeDee Lamb","WR",5,17.2),PR("Justin Jefferson","WR",6,17.2),PR("Chris Olave","WR",7,16.4),PR("Malik Nabers","WR",8,16.4),
+PR("Nico Collins","WR",9,15.6),PR("Zay Flowers","WR",10,15.5),PR("Drake London","WR",11,15.5),PR("Jaylen Waddle","WR",12,15.0),
+PR("George Pickens","WR",13,15.0),PR("Ladd McConkey","WR",14,14.3),PR("Tee Higgins","WR",15,14.3),PR("Rashee Rice","WR",16,14.3),
+PR("DeVonta Smith","WR",17,14.3),PR("Parker Washington","WR",18,14.2),PR("Emeka Egbuka","WR",19,14.2),PR("Christian Watson","WR",20,14.2),
+PR("Tetairoa McMillan","WR",21,14.2),PR("Garrett Wilson","WR",22,14.2),PR("Terry McLaurin","WR",23,14.2),PR("Mike Evans","WR",24,13.2),
+PR("Rome Odunze","WR",25,13.2),PR("Jameson Williams","WR",26,13.2),PR("Luther Burden III","WR",27,13.2),PR("DJ Moore","WR",28,12.1),
+PR("Stefon Diggs","WR",29,12.1),PR("Carnell Tate","WR",30,12.1),PR("A.J. Brown","WR",31,12.1),PR("Davante Adams","WR",32,12.1),
+PR("DK Metcalf","WR",33,12.1),PR("Brian Thomas Jr.","WR",34,11.7),PR("Josh Downs","WR",35,11.7),PR("Quentin Johnston","WR",36,11.7),
+PR("Michael Wilson","WR",37,11.7),PR("Jalen Coker","WR",38,11.7),PR("Michael Pittman Jr.","WR",39,11.7),PR("Matthew Golden","WR",40,11.7),
+PR("Courtland Sutton","WR",41,10.4),PR("Deebo Samuel Sr.","WR",42,10.3),PR("Marvin Harrison Jr.","WR",43,10.2),PR("Jakobi Meyers","WR",44,10.2),
+PR("Alec Pierce","WR",45,10.2),PR("Wan'Dale Robinson","WR",46,10.2),PR("Khalil Shakir","WR",47,9.9),PR("Chris Godwin Jr.","WR",48,9.8),
+PR("Jayden Reed","WR",49,9.8),PR("Xavier Worthy","WR",50,9.8),PR("Romeo Doubs","WR",51,9.8),PR("Makai Lemon","WR",52,9.8),
+PR("KC Concepcion","WR",53,9.8),PR("Jordyn Tyson","WR",54,9.8),PR("Rashid Shaheed","WR",55,8.4),PR("Jordan Addison","WR",56,8.4),
+PR("Dontayvion Wicks","WR",57,8.4),PR("Tre Tucker","WR",58,8.4),PR("Jalen McMillan","WR",59,8.4),PR("Jerry Jeudy","WR",60,8.4),
+PR("Trey McBride","TE",1,16.7),PR("Brock Bowers","TE",2,13.8),PR("Dalton Kincaid","TE",3,13.5),PR("Tyler Warren","TE",4,12.8),
+PR("Tucker Kraft","TE",5,11.7),PR("Sam LaPorta","TE",6,11.3),PR("George Kittle","TE",7,11.3),PR("Colston Loveland","TE",8,10.5),
+PR("Isaiah Likely","TE",9,10.5),PR("Harold Fannin Jr.","TE",10,10.5),PR("Juwan Johnson","TE",11,10.5),PR("Travis Kelce","TE",12,10.5),
+PR("Kyle Pitts Sr.","TE",13,10.5),PR("Mark Andrews","TE",14,9.6),PR("Jake Ferguson","TE",15,9.6),PR("Dallas Goedert","TE",16,8.3),
+PR("Hunter Henry","TE",17,8.3),PR("Brenton Strange","TE",18,8.3),PR("Dalton Schultz","TE",19,8.3),PR("Pat Freiermuth","TE",20,8.3),
+PR("T.J. Hockenson","TE",21,8.0),PR("Kenyon Sadiq","TE",22,8.0),PR("Chig Okonkwo","TE",23,8.0),PR("AJ Barner","TE",24,8.0),
+PR("Michael Mayer","TE",25,7.7),
+PR("Brandon Aubrey","K",1,9.8),PR("Harrison Butker","K",2,9.2),PR("Cameron Dicker","K",3,8.9),PR("Justin Tucker","K",4,8.6),
+PR("Chris Boswell","K",5,8.3),PR("Younghoe Koo","K",6,8.0),PR("Jason Sanders","K",7,7.7),PR("Jake Moody","K",8,7.4),
+PR("Ka'imi Fairbairn","K",9,7.1),PR("Matt Gay","K",10,6.8),
+PR("Broncos D/ST","DEF",1,9.6),PR("Steelers D/ST","DEF",2,8.9),PR("Eagles D/ST","DEF",3,8.4),PR("49ers D/ST","DEF",4,8.0),
+PR("Texans D/ST","DEF",5,7.6),PR("Ravens D/ST","DEF",6,7.3),PR("Bills D/ST","DEF",7,7.0),PR("Vikings D/ST","DEF",8,6.7),
+PR("Cowboys D/ST","DEF",9,6.4),PR("Jets D/ST","DEF",10,6.1),
 ];
-
 function normalizeName(n){ return (n||'').toLowerCase().replace(/[.'’]/g,'').replace(/\s+jr$|\s+sr$|\s+ii$|\s+iii$/,'').trim(); }
 const mockByName = {}; mockPlayers.forEach(p=>{ mockByName[normalizeName(p.name)] = p; });
 
-let RANKS = {};
-function computeRanks(){
-  RANKS = {std:{},half:{},ppr:{}};
-  ['std','half','ppr'].forEach(f=>{
-    const byPos = {};
-    mockPlayers.forEach(p=>{ (byPos[p.pos]=byPos[p.pos]||[]).push(p); });
-    Object.keys(byPos).forEach(pos=>{ RANKS[f][pos] = byPos[pos].slice().sort((a,b)=>b[f]-a[f]); });
-  });
+const REC_PENALTY = {
+  QB:{half:0, std:0}, RB:{half:1.2, std:2.4}, WR:{half:2.5, std:5.0}, TE:{half:2.0, std:4.0}, K:{half:0, std:0}, DEF:{half:0, std:0},
+};
+function valueFor(mock, fmt){
+  const pen = REC_PENALTY[mock.pos] || REC_PENALTY.QB;
+  if(fmt==='ppr') return mock.ppg;
+  if(fmt==='half') return Math.max(0.5, +(mock.ppg - pen.half).toFixed(1));
+  return Math.max(0.5, +(mock.ppg - pen.std).toFixed(1));
 }
-computeRanks();
-
 const TIER_CUTOFFS = { QB:[3,8,14,20], RB:[5,14,26,40], WR:[5,14,28,45], TE:[3,8,14,20], K:[3,6,10], DEF:[3,6,10] };
 const TIER_LABELS = ["Elite","High-End Starter","Solid Starter","Flex / Streamer","Deep / Bench"];
 function tierForRank(pos, rank){
@@ -334,23 +338,20 @@ function tierForRank(pos, rank){
   for(let t=0;t<cutoffs.length;t++){ if(rank<=cutoffs[t]) return t+1; }
   return cutoffs.length+1;
 }
-
 const curatedBlurbs = {
-  "Patrick Mahomes":"Still the floor/ceiling combo the format is built around — elite weekly QB1.",
   "Josh Allen":"Rushing touchdowns alone give him a ceiling no pure pocket passer can match.",
   "Ja'Marr Chase":"Target hog on a pass-heavy offense — as safe as a WR1 gets.",
-  "Justin Jefferson":"Route-running and target share both elite; matchup-proof most weeks.",
+  "Jaxon Smith-Njigba":"Legit top-tier WR right now — leading Seattle's target share and producing like it.",
+  "Amon-Ra St. Brown":"Route-running and target share both elite; matchup-proof most weeks.",
+  "Jahmyr Gibbs":"Three-down role in an explosive offense — huge PPR ceiling.",
   "Bijan Robinson":"Full workhorse role now — three-down usage with real receiving work.",
   "Christian McCaffrey":"Elite when healthy, but the injury history is the real discount here.",
-  "Saquon Barkley":"Bell-cow volume behind a strong line — every-week RB1 profile.",
-  "Brock Bowers":"Target monster at a position with almost no other true difference-makers.",
+  "Trey McBride":"Target monster at a position with almost no other true difference-makers right now.",
   "Derrick Henry":"Still a bruising early-down workhorse, though the tread on the tires is real.",
   "CeeDee Lamb":"Alpha target share whenever the offense is clicking around him.",
-  "Jahmyr Gibbs":"Three-down role in an explosive offense — huge PPR ceiling.",
   "Tee Higgins":"Solid WR2 with real red-zone role, capped some by target competition.",
   "Emeka Egbuka":"Ascending role — the target share is trending the right way.",
   "Travis Kelce":"Still gets targeted in the red zone, but age-related decline shows up in explosive plays.",
-  "Aaron Jones":"Reliable veteran floor, but touches are shared enough to cap the ceiling.",
 };
 const archetypeBlurbs = {
   QB:{1:["Weekly QB1 ceiling with real rushing equity — anchors a corner of the lineup.","Elite arm talent, enough mobility to post spike weeks in tough matchups."],
@@ -387,6 +388,9 @@ function getBlurb(name,pos,tier){
   if(curatedBlurbs[name]) return curatedBlurbs[name];
   const pool = (archetypeBlurbs[pos] && archetypeBlurbs[pos][tier]) || ["Limited signal — treat as depth until it produces."];
   return hashPick(name, pool);
+}
+function initials(name){
+  return name.split(/\s+/).filter(w=>!/^(jr\.?|sr\.?|ii|iii|iv)$/i.test(w)).slice(0,2).map(w=>w[0]).join('').toUpperCase();
 }
 
 let fmt = 'half';
@@ -489,12 +493,10 @@ document.querySelectorAll('.tabbar button').forEach(btn=>{
 });
 
 function infoFromMock(mock){
-  const arr = RANKS[fmt][mock.pos] || [];
-  const rank = arr.findIndex(p=>p.name===mock.name) + 1;
-  const tier = tierForRank(mock.pos, rank);
+  const tier = tierForRank(mock.pos, mock.rank);
   const sid = sleeperIdByName[normalizeName(mock.name)];
   return {
-    name: mock.name, pos: mock.pos, score: mock[fmt], rank, tier, ranked:true,
+    name: mock.name, pos: mock.pos, value: valueFor(mock, fmt), rank: mock.rank, tier, ranked:true,
     tierLabel: TIER_LABELS[tier-1] || 'Deep / Bench',
     blurb: getBlurb(mock.name, mock.pos, tier),
     headshot: sid ? `https://sleepercdn.com/content/nfl/players/${sid}.jpg` : null,
@@ -504,16 +506,15 @@ function infoFromMock(mock){
 }
 function assignValue(playerId){
   const meta = playersDB && playersDB[playerId];
-  if(!meta) return {name:playerId,pos:'?',team:'',score:40,rank:null,tier:null,ranked:false,tierLabel:'Unranked',blurb:'No data available.',headshot:null,playerId};
+  if(!meta) return {name:playerId,pos:'?',team:'',value:4.0,rank:null,tier:null,ranked:false,tierLabel:'Unranked',blurb:'No data available.',headshot:null,playerId};
   const name = meta.full_name || ((meta.first_name||'')+' '+(meta.last_name||'')) || playerId;
   const pos = meta.position || (meta.fantasy_positions && meta.fantasy_positions[0]) || '?';
   const team = meta.team || '';
   const mock = mockByName[normalizeName(name)];
   const headshot = `https://sleepercdn.com/content/nfl/players/${playerId}.jpg`;
   if(mock){ const info = infoFromMock(mock); return {...info, team, headshot, playerId}; }
-  const baseline = {QB:55,RB:42,WR:42,TE:38,K:55,DEF:55}[pos]||35;
-  return {name,pos,team,score:baseline,rank:null,tier:null,ranked:false,tierLabel:'Unranked',
-    blurb:'Outside the mock top-190 — not enough signal here for a confident grade, treat as waiver-tier for now.',
+  return {name,pos,team,value:4.0,rank:null,tier:null,ranked:false,tierLabel:'Unranked',
+    blurb:'Outside the tracked player pool — not enough signal for a confident grade, treat as waiver-tier for now.',
     headshot, playerId};
 }
 
@@ -541,76 +542,86 @@ function renderTeams(){
   });
 }
 
+// ---- Trade tab: team pick + conveyor belt ----
 function populateTeamSelects(){
   ['teamASelect','teamBSelect','myTeamSelect'].forEach(id=>{
     const sel = document.getElementById(id);
     sel.innerHTML = rosters.map(r=>`<option value="${r.roster_id}">${ownerNameByRosterId[r.roster_id]}</option>`).join('');
   });
   document.getElementById('teamBSelect').selectedIndex = Math.min(1, rosters.length-1);
-  document.getElementById('teamASelect').onchange = ()=>populatePlayerSelect('A');
-  document.getElementById('teamBSelect').onchange = ()=>populatePlayerSelect('B');
-  populatePlayerSelect('A'); populatePlayerSelect('B');
+  document.getElementById('teamASelect').onchange = ()=>{ document.getElementById('sideALabel').textContent = ownerNameByRosterId[parseInt(document.getElementById('teamASelect').value)]; renderBelt('A'); };
+  document.getElementById('teamBSelect').onchange = ()=>{ document.getElementById('sideBLabel').textContent = ownerNameByRosterId[parseInt(document.getElementById('teamBSelect').value)]; renderBelt('B'); };
+  document.getElementById('sideALabel').textContent = ownerNameByRosterId[parseInt(document.getElementById('teamASelect').value)];
+  document.getElementById('sideBLabel').textContent = ownerNameByRosterId[parseInt(document.getElementById('teamBSelect').value)];
+  renderBelt('A'); renderBelt('B');
 }
-function populatePlayerSelect(side){
-  const teamSel = document.getElementById('team'+side+'Select');
-  const playerSel = document.getElementById('player'+side+'Select');
-  const rosterId = parseInt(teamSel.value);
+function beltCard(playerId, side){
+  const info = assignValue(playerId);
+  const pc = POS_COLOR[info.pos] || '#888';
+  const d = document.createElement('div');
+  d.className = 'belt-card';
+  d.style.setProperty('--pc', pc);
+  const avatarInner = info.headshot
+    ? `<img src="${info.headshot}" onerror="this.parentElement.textContent='${initials(info.name)}';">`
+    : initials(info.name);
+  d.innerHTML = `
+    <div class="belt-avatar">${avatarInner}</div>
+    <div class="belt-name">${info.name}</div>
+    <div class="belt-meta">${info.ranked ? info.pos+info.rank : 'NR'}</div>
+    <div class="belt-ppg">${info.value.toFixed(1)}</div>`;
+  d.onclick = ()=>{ (side==='A'?give:get).push({rosterId: parseInt(document.getElementById('team'+side+'Select').value), ...info}); renderTradeLists(); };
+  return d;
+}
+function renderBelt(side){
+  const rosterId = parseInt(document.getElementById('team'+side+'Select').value);
   const roster = rosters.find(r=>r.roster_id===rosterId);
-  document.getElementById('side'+side+'Label').textContent = ownerNameByRosterId[rosterId];
-  playerSel.innerHTML = (roster.players||[]).map(pid=>{
-    const info = assignValue(pid);
-    return `<option value="${pid}">${info.name} (${info.pos}) — ${info.ranked?info.pos+info.rank:'NR'}</option>`;
-  }).join('');
-}
-function addPiece(side){
-  const teamSel = document.getElementById('team'+side+'Select');
-  const playerSel = document.getElementById('player'+side+'Select');
-  const pid = playerSel.value; if(!pid) return;
-  const info = assignValue(pid);
-  (side==='A'?give:get).push({rosterId: parseInt(teamSel.value), playerId: pid, ...info});
-  renderTradeLists();
+  const q = document.getElementById('search'+side).value.trim().toLowerCase();
+  const container = document.getElementById('belt'+side);
+  container.innerHTML = '';
+  if(!roster){ container.innerHTML = '<div class="belt-empty">No roster.</div>'; return; }
+  let ids = roster.players || [];
+  let list = ids.map(pid=>({pid, info:assignValue(pid)}));
+  if(q) list = list.filter(x=>x.info.name.toLowerCase().includes(q));
+  list.sort((a,b)=>b.info.value - a.info.value);
+  if(list.length===0){ container.innerHTML = '<div class="belt-empty">No players match.</div>'; return; }
+  list.forEach(x=>container.appendChild(beltCard(x.pid, side)));
 }
 function removePiece(side, idx){ (side==='A'?give:get).splice(idx,1); renderTradeLists(); }
+function pieceEl(p, side, idx){
+  const d = document.createElement('div'); d.className='piece';
+  d.innerHTML = `<div class="piece-top">${chipHtml(p)}<span style="display:flex; align-items:center; gap:8px;"><span class="ppg-val" style="font-size:12px;">${p.value.toFixed(1)} PPG</span><button onclick="removePiece('${side}',${idx})">×</button></span></div><div class="blurb">${p.blurb}</div>`;
+  return d;
+}
+function gradeTrade(gSum, rSum, aName, bName){
+  if(gSum===0 || rSum===0) return {label:'Add players from both belts', color:'var(--text-dim)', sub:'', markerPct:50};
+  const diff = rSum - gSum; const avg = (gSum+rSum)/2; const pct = avg ? (diff/avg)*100 : 0;
+  const absPct = Math.abs(pct); const markerPct = Math.max(2, Math.min(98, 50 + pct));
+  let label, color, sub;
+  if(absPct<=5){ label='Fair Trade'; color='var(--amber)'; sub=`Within ${absPct.toFixed(0)}% weekly points — call it even.`; }
+  else if(absPct<=15){ label = pct>0? `Slight Win for ${aName}` : `Slight Win for ${bName}`; color='var(--green)'; sub=`~${absPct.toFixed(0)}% points-per-game gap.`; }
+  else if(absPct<=30){ label = pct>0? `Lopsided Win for ${aName}` : `Lopsided Win for ${bName}`; color='var(--green)'; sub=`~${absPct.toFixed(0)}% points-per-game gap.`; }
+  else { label = pct>0? `${bName} Just Got Fleeced` : `${aName} Just Got Fleeced`; color='var(--red)'; sub=`~${absPct.toFixed(0)}% points-per-game gap — one side is getting robbed.`; }
+  return {label,color,sub,markerPct};
+}
 function renderTradeLists(){
   const listA = document.getElementById('listA'), listB = document.getElementById('listB');
   listA.innerHTML=''; listB.innerHTML='';
   give.forEach((p,i)=>listA.appendChild(pieceEl(p,'A',i)));
   get.forEach((p,i)=>listB.appendChild(pieceEl(p,'B',i)));
-
   const verdict = document.getElementById('verdict');
   if(give.length===0 && get.length===0){ verdict.classList.add('hidden'); renderMyRoster(); return; }
   verdict.classList.remove('hidden');
-  const gSum = give.reduce((s,p)=>s+p.score,0);
-  const rSum = get.reduce((s,p)=>s+p.score,0);
-  const aName = document.getElementById('sideALabel').textContent;
-  const bName = document.getElementById('sideBLabel').textContent;
+  const gSum = give.reduce((s,p)=>s+p.value,0), rSum = get.reduce((s,p)=>s+p.value,0);
+  const aName = document.getElementById('sideALabel').textContent, bName = document.getElementById('sideBLabel').textContent;
   const {label,color,sub,markerPct} = gradeTrade(gSum,rSum,aName,bName);
-  const headline = document.getElementById('verdictHeadline');
-  headline.textContent = label; headline.style.color = color;
+  document.getElementById('verdictHeadline').textContent = label;
+  document.getElementById('verdictHeadline').style.color = color;
   document.getElementById('verdictSub').textContent = sub;
   document.getElementById('scaleMarker').style.left = markerPct+'%';
   renderMyRoster();
 }
-function pieceEl(p, side, idx){
-  const d = document.createElement('div'); d.className='piece';
-  d.innerHTML = `<div class="piece-top">${chipHtml(p)}<span style="display:flex; align-items:center; gap:8px;">${tierBadgeHtml(p)}<button onclick="removePiece('${side}',${idx})">×</button></span></div><div class="blurb">${p.blurb}</div>`;
-  return d;
-}
-function gradeTrade(gSum, rSum, aName, bName){
-  if(gSum===0 || rSum===0) return {label:'Add players from both sides', color:'var(--text-dim)', sub:'', markerPct:50};
-  const diff = rSum - gSum;
-  const avg = (gSum+rSum)/2;
-  const pct = avg ? (diff/avg)*100 : 0;
-  const absPct = Math.abs(pct);
-  const markerPct = Math.max(2, Math.min(98, 50 + pct));
-  let label, color, sub;
-  if(absPct<=5){ label='Fair Trade'; color='var(--amber)'; sub=`Within ${absPct.toFixed(0)}% value — call it even.`; }
-  else if(absPct<=15){ label = pct>0? `Slight Win for ${aName}` : `Slight Win for ${bName}`; color='var(--green)'; sub=`~${absPct.toFixed(0)}% value gap — mild edge, comes down to roster need.`; }
-  else if(absPct<=30){ label = pct>0? `Lopsided Win for ${aName}` : `Lopsided Win for ${bName}`; color='var(--green)'; sub=`~${absPct.toFixed(0)}% value gap — clear winner here.`; }
-  else { label = pct>0? `${bName} Just Got Fleeced` : `${aName} Just Got Fleeced`; color='var(--red)'; sub=`~${absPct.toFixed(0)}% value gap — one side is getting robbed.`; }
-  return {label,color,sub,markerPct};
-}
 
+// ---- Roster impact tab ----
 function buildSlotDefsFromLeague(){
   const positions = (currentLeague && currentLeague.roster_positions) || ["QB","RB","RB","WR","WR","TE","FLEX","K","DEF"];
   const counts = {}; const defs = [];
@@ -655,8 +666,8 @@ function renderMyRoster(){
 function computeImpact(roster, slotDefs, starterIds, benchIds){
   const rosterId = roster.roster_id;
   let before=0, filled=0;
-  starterIds.forEach(pid=>{ if(pid && pid!=='0'){ before += assignValue(pid).score; filled++; } });
-  document.getElementById('beforeScore').textContent = filled ? Math.round(before) : '—';
+  starterIds.forEach(pid=>{ if(pid && pid!=='0'){ before += assignValue(pid).value; filled++; } });
+  document.getElementById('beforeScore').textContent = filled ? before.toFixed(1) : '—';
 
   const tradedOutIds = give.filter(p=>p.rosterId===rosterId).map(p=>p.playerId);
   const tradedInPieces = get.filter(p=>p.rosterId===rosterId);
@@ -668,13 +679,13 @@ function computeImpact(roster, slotDefs, starterIds, benchIds){
   });
   const startingSet = new Set(working.filter(s=>s.pid).map(s=>s.pid));
   let pool = benchIds.filter(id=>!tradedOutIds.includes(id) && !startingSet.has(id)).map(id=>({playerId:id, ...assignValue(id)}));
-  tradedInPieces.forEach(p=>{ if(!startingSet.has(p.playerId)) pool.push({playerId:p.playerId, name:p.name, pos:p.pos, score:p.score}); });
+  tradedInPieces.forEach(p=>{ if(!startingSet.has(p.playerId)) pool.push({playerId:p.playerId, name:p.name, pos:p.pos, value:p.value}); });
 
   const notes = [];
   working.forEach(slot=>{
     if(slot.pid) return;
     let best=null, bestIdx=-1;
-    pool.forEach((cand,i)=>{ if(slot.eligible.includes(cand.pos)){ if(!best || cand.score>best.score){ best=cand; bestIdx=i; } } });
+    pool.forEach((cand,i)=>{ if(slot.eligible.includes(cand.pos)){ if(!best || cand.value>best.value){ best=cand; bestIdx=i; } } });
     if(best){
       const origPid = starterIds[slot.idx];
       slot.pid = best.playerId; pool.splice(bestIdx,1);
@@ -684,13 +695,13 @@ function computeImpact(roster, slotDefs, starterIds, benchIds){
     }
   });
   let after=0, afterFilled=0;
-  working.forEach(slot=>{ if(slot.pid){ after += assignValue(slot.pid).score; afterFilled++; } });
-  document.getElementById('afterScore').textContent = afterFilled ? Math.round(after) : '—';
+  working.forEach(slot=>{ if(slot.pid){ after += assignValue(slot.pid).value; afterFilled++; } });
+  document.getElementById('afterScore').textContent = afterFilled ? after.toFixed(1) : '—';
 
   const badge = document.getElementById('tierBadge');
   if(afterFilled){
     const avg = after/afterFilled; let tier='Average';
-    if(avg>=75) tier='Elite'; else if(avg>=60) tier='Strong'; else if(avg<45) tier='Rebuilding';
+    if(avg>=15) tier='Elite'; else if(avg>=10) tier='Strong'; else if(avg<6) tier='Rebuilding';
     badge.textContent = tier;
   } else badge.textContent='—';
 
@@ -698,21 +709,22 @@ function computeImpact(roster, slotDefs, starterIds, benchIds){
   let html='';
   if(filled && afterFilled){
     const delta = after-before;
-    html += `Lineup strength is <b>${delta===0?'unchanged':(delta>0?'up '+Math.round(delta)+' points':'down '+Math.round(Math.abs(delta))+' points')}</b> after this trade and any OUT flags. `;
+    html += `Lineup strength is <b>${Math.abs(delta)<0.05?'unchanged':(delta>0?'up '+delta.toFixed(1)+' pts/gm':'down '+Math.abs(delta).toFixed(1)+' pts/gm')}</b> after this trade and any OUT flags. `;
   }
   if(notes.length) html += '<br><br>'+notes.join('<br>');
   noteEl.innerHTML = html || 'Flag a starter OUT above, or build a trade, to see lineup changes here.';
 }
 
+// ---- Rankings tab ----
 function renderRankings(){
   const filter = document.getElementById('rankPosFilter').value;
   const tbody = document.getElementById('rankTableBody'); tbody.innerHTML='';
   const positions = filter==='ALL' ? ['QB','RB','WR','TE','K','DEF'] : [filter];
   positions.forEach(pos=>{
-    (RANKS[fmt][pos]||[]).forEach((mock,i)=>{
+    mockPlayers.filter(p=>p.pos===pos).sort((a,b)=>a.rank-b.rank).forEach(mock=>{
       const info = infoFromMock(mock);
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td class="rank-num">${pos}${i+1}</td><td>${chipHtml(info)}</td><td style="color:${POS_COLOR[pos]};">${pos}</td><td><span class="tierbadge t${info.tier}">${info.tierLabel}</span></td><td>${info.score}</td>`;
+      tr.innerHTML = `<td class="rank-num">${pos}${mock.rank}</td><td>${chipHtml(info)}</td><td style="color:${POS_COLOR[pos]};">${pos}</td><td><span class="tierbadge t${info.tier}">${info.tierLabel}</span></td><td class="ppg-val">${info.value.toFixed(1)}</td>`;
       tbody.appendChild(tr);
     });
   });
